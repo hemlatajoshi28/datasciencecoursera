@@ -1,0 +1,138 @@
+# Practical Machine Learning Project
+## by Hemlata Joshi
+
+
+**Background**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har 
+(see the section on the Weight Lifting Exercise Dataset).
+
+
+
+**Loading the required packages**
+```{r}
+library(caret)
+library(e1071)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(gbm)
+```
+
+**Importing Data**
+```{r}
+pml.training <- read.csv("F:/coursera/practical machine learning/pml-training.csv")
+pml.testing <- read.csv("F:/coursera/practical machine learning/pml-testing.csv")
+pml.training$classe=as.factor(pml.training$classe)
+```
+
+**Summary of Data**
+```{r}
+dim(pml.training)
+summary(pml.training)
+dim(pml.testing)
+summary(pml.testing)
+
+```
+
+**Preparing Data for Analysis**,
+
+The variables with NA or missing values are removed
+
+```{r}
+#Cleaning of Training data 
+rvariables=which(colSums(is.na(pml.training)|pml.training=="")>.90*dim(pml.training)[1])
+trainingdata=pml.training[, -rvariables]
+trainingdata=trainingdata[, -c(1:7)]
+dim(trainingdata)
+
+
+#Cleaning of Testing data 
+
+rvariables=which(colSums(is.na(pml.testing)|pml.testing=="")>.90*dim(pml.testing)[1])
+testingdata=pml.testing[, -rvariables]
+testingdata=testingdata[, -1]
+dim(testingdata)
+```
+
+**Model Building for Prediction**
+
+1. Spliting the training data set into training and testing sets in the .70 and .30 ratio
+
+```{r}
+set.seed(123)
+inTrain=createDataPartition(trainingdata$classe, p=.70, list=FALSE)
+trainData=trainingdata[inTrain, ]
+testData=trainingdata[-inTrain,]
+dim(trainData)
+dim(testData)
+
+```
+2. For analysis we have used three algorithms,
+  + Decision Tree
+  + Random Forest and 
+  + Gradient Boosting Method
+
+*1.  Decision Tree Method*
+
+
+```{r}
+model.ct=train(classe~., data=trainData, method="rpart")
+fancyRpartPlot(model.ct$finalModel)
+
+
+trainpred=predict(model.ct, newdata=testData)
+testData$classe=as.factor(testData$classe)
+table(testData$classe)
+table(trainpred)
+model.ct.conf.mat=confusionMatrix(trainpred, testData$classe)
+model.ct.conf.mat$table
+model.ct.conf.mat$overall[1]
+```
+*2.  Random Forest Method*,
+
+In order to limit the effects of overfitting, and improve the efficicency of the models, we have used the 5-fold cross velidation
+```{r}
+trcontrol.rf=trainControl(method="cv", number=5, verboseIter = FALSE)
+model.rf=train(classe~., data=trainData, method="rf", trControl=trcontrol.rf, verboseIter=FALSE)
+print(model.rf)
+model.rf$finalModel
+plot(model.rf)
+
+trainpred=predict(model.rf, newdata=testData)
+model.rf.conf.mat=confusionMatrix(testData$classe, trainpred)
+#Confusion matrix and accuracy of the random forest mmodel
+model.rf.conf.mat$table
+model.rf.conf.mat$overall[1]
+model.rf$finalModel$classes
+plot(model.rf$finalModel)
+
+# Important variables to predict the dependent variable 
+impvars<- varImp(model.rf)
+impvars
+```
+
+*3. Gradient Boosting method*
+  
+```{r}
+trcontrol.gbm=trainControl(method = "repeatedcv", number = 5, repeats = 1)
+model.gbm=train(classe~., data=trainData, method="gbm", trControl=trcontrol.gbm, verbose=FALSE)
+print(model.gbm)
+plot(model.gbm)
+trainpred=predict(model.gbm, newdata=testData)
+model.gbm.conf.mat=confusionMatrix(testData$classe, trainpred)
+model.gbm.conf.mat$table
+model.gbm.conf.mat$overall[1]
+```
+** Conclusion**
+
+From the above three algorithms, we can see that the accuracy of the Decision Tree is  0.4997451, the accuracy from the Random forest is 0.9930331 and the accuracy from the Gradient Boosing method is 0.9605777. Hence, we found that Random Forest method is the best method among all these methods with accuracy 0.9930331. So, we will use Random Forest method to predict the dependent variable classe for the test data set.
+
+**Prediction**
+```{r}
+results <- predict(model.rf,newdata=testingdata)
+results
+```
